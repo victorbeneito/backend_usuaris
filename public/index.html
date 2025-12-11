@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Administración de Productos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+</head>
+
+<body class="container py-4">
+    <h1 class="mb-4">Administración de Productos</h1>
+
+    <!-- Formulario para añadir/modificar producto -->
+    <form id="productForm" class="mb-4">
+        <input id="nombre" class="form-control mb-2" placeholder="Nombre producto" required />
+        <textarea id="descripcion" class="form-control mb-2" placeholder="Descripción"></textarea>
+        <input id="precio" type="number" min="0" step="0.01" class="form-control mb-2" placeholder="Precio" required />
+        <input id="stock" type="number" min="0" class="form-control mb-2" placeholder="Stock" required />
+        <input id="marca" class="form-control mb-2" placeholder="ID de Marca (ObjectId)" required />
+        <input id="categorias" class="form-control mb-2" placeholder='IDs de Categorías (ej: ["id1", "id2"])'
+            required />
+        <input id="imagenes" class="form-control mb-2" placeholder="URL Imagen" />
+        <div class="mb-2">
+            <button type="submit" class="btn btn-primary" id="agregarBtn">Agregar Producto</button>
+            <button type="button" class="btn btn-success" id="modificarBtn" disabled>Modificar Producto</button>
+        </div>
+    </form>
+
+    <button class="btn btn-info mb-4" onclick="fetchAndShow()">Listar productos</button>
+
+    <div id="list-productos"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const BASE_URL = 'http://localhost:3000/productos';
+        let currentEditId = null;
+
+        // Limpiar formulario
+        function resetForm() {
+            document.getElementById('productForm').reset();
+            document.getElementById('modificarBtn').disabled = true;
+            document.getElementById('agregarBtn').disabled = false;
+            currentEditId = null;
+        }
+
+        // Listar productos
+        function fetchAndShow() {
+            fetch(BASE_URL)
+                .then(res => res.json())
+                .then(productos => {
+                    const html = productos.map(p => `
+            <div class="card mb-2">
+              <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                  <h5>${p.nombre}</h5>
+                  <p>${p.descripcion || ''}</p>
+                  <p>Precio: $${p.precio.toFixed(2)} | Stock: ${p.stock}</p>
+                  <p>Marca: ${p.marca}</p>
+                  <p>Categorías: ${Array.isArray(p.categorias) ? p.categorias.join(', ') : ''}</p>
+                  <img src="${p.imagenes || ''}" alt="${p.nombre}" style="max-height:80px;" />
+                </div>
+                <div>
+                  <button class="btn btn-warning btn-sm me-2" title="Editar" onclick="loadEditProducto('${p._id}')">&#9998;</button>
+                  <button class="btn btn-danger btn-sm" title="Eliminar" onclick="deleteProducto('${p._id}')">Eliminar</button>
+                </div>
+              </div>
+            </div>
+          `).join('');
+                    document.getElementById('list-productos').innerHTML = html;
+                });
+        }
+
+        // Llenar los datos del producto a editar en el formulario
+        function loadEditProducto(id) {
+            fetch(`${BASE_URL}/${id}`)
+                .then(res => res.json())
+                .then(p => {
+                    document.getElementById('nombre').value = p.nombre || '';
+                    document.getElementById('descripcion').value = p.descripcion || '';
+                    document.getElementById('precio').value = p.precio || '';
+                    document.getElementById('stock').value = p.stock || '';
+                    document.getElementById('marca').value = p.marca || '';
+                    document.getElementById('categorias').value = JSON.stringify(p.categorias || []);
+                    document.getElementById('imagenes').value = p.imagenes || '';
+                    document.getElementById('modificarBtn').disabled = false;
+                    document.getElementById('agregarBtn').disabled = true;
+                    currentEditId = id;
+                });
+        }
+
+        // Eliminar producto
+        function deleteProducto(id) {
+            if (!confirm('¿Seguro que quieres eliminar este producto?')) return;
+            fetch(`${BASE_URL}/${id}`, { method: 'DELETE' })
+                .then(res => {
+                    if (!res.ok) throw new Error('Error al eliminar producto');
+                    fetchAndShow();
+                })
+                .catch(e => alert(e.message));
+        }
+
+        // Agregar producto
+        document.getElementById('productForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            if (currentEditId) return; // Si estamos editando, el submit no hace nada
+            const producto = getFormData();
+            if (!producto) return;
+            fetch(BASE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(producto)
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error('Error al agregar producto');
+                    resetForm();
+                    fetchAndShow();
+                })
+                .catch(e => alert(e.message));
+        });
+
+        // Modificar producto
+        document.getElementById('modificarBtn').addEventListener('click', function () {
+            if (!currentEditId) return;
+            const producto = getFormData();
+            if (!producto) return;
+            fetch(`${BASE_URL}/${currentEditId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(producto)
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error('Error al actualizar producto');
+                    resetForm();
+                    fetchAndShow();
+                })
+                .catch(e => alert(e.message));
+        });
+
+        // Leer y validar los datos de formulario
+        function getFormData() {
+            const nombre = document.getElementById('nombre').value.trim();
+            const descripcion = document.getElementById('descripcion').value.trim();
+            const precio = parseFloat(document.getElementById('precio').value);
+            const stock = parseInt(document.getElementById('stock').value);
+            const marca = document.getElementById('marca').value.trim();
+            let categoriasRaw = document.getElementById('categorias').value.trim();
+            const imagenes = document.getElementById('imagenes').value.trim();
+
+            if (!nombre || isNaN(precio) || precio < 0 || isNaN(stock) || stock < 0 || !marca || !categoriasRaw) {
+                alert('Por favor completa todos los campos obligatorios correctamente.');
+                return null;
+            }
+            let categorias;
+            try {
+                categorias = JSON.parse(categoriasRaw);
+                if (!Array.isArray(categorias)) throw 'No es un array';
+            } catch (e) {
+                alert('El campo Categorías debe ser un JSON válido de array de strings.');
+                return null;
+            }
+            return { nombre, descripcion, precio, stock, marca, categorias, imagenes };
+        }
+
+        // Inicializa evento para resetear el formulario al volver a agregar nuevo producto
+        document.getElementById('productForm').addEventListener('reset', resetForm);
+
+        // Inicializa la interfaz mostrando productos
+        fetchAndShow();
+    </script>
+</body>
+
+</html>
