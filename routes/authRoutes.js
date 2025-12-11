@@ -43,9 +43,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Usuario no encontrado' });
     }
 
-    // Comparar usando bcrypt o el método del modelo
+    // Comparar usando bcrypt
     const match = await bcrypt.compare(password, usuario.password);
-    // O: const match = await usuario.comparePassword(password);
+   
 
     if (!match) {
       return res.status(400).json({ ok: false, error: 'Contraseña incorrecta' });
